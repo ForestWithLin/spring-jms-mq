@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:amq="http://activemq.apache.org/schema/core"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd  http://www.springframework.org/schema/context
+           http://www.springframework.org/schema/context/spring-context-2.5.xsd
+           http://activemq.apache.org/schema/core http://activemq.apache.org/schema/core/activemq-core.xsd">
+  	
+  	<!-- 使用VM传输连接器意味着客户端和内嵌带代理之间不需要网络连接,通过直接调用代理对象的方法来实现通信 -->
+  	<!-- 定义了一个Broker，就是一个ActiveMQ的实例 persistent： 是否持久化,  brokerName：定义broker名称-->
+   <amq:broker useJmx="false" persistent="true" brokerName="broker02">
+    	<amq:managementContext>
+    	    <amq:managementContext createConnector="false" connectorPort="11099"/>
+    	</amq:managementContext>
+    	<!-- 定义了activemq对数据的存储方式，即使用KahaDB进行存储，并指定了存储目录 -->
+    	<amq:persistenceAdapter>
+    		<amq:kahaDB directory="F:\\temp\\jms" ></amq:kahaDB>
+        </amq:persistenceAdapter>
+       	<!-- 定义了一个传输连接器，应用程序可以使用指定地址和端口与ActiveMQ进行链接，收发消息，这里使用的是VM连接 -->
+         <amq:transportConnectors>
+			<amq:transportConnector uri="vm://127.0.0.1:1" />
+		</amq:transportConnectors>
+    </amq:broker>
+
+
+  	 <!-- wireFormat.maxInactivityDuration=0&amp; -->
+  
+  	<!-- 不知道为什么使用vm协议不行，而且默认vm:127.0.0.1?jms.useAsyncSend=true，不会报错误，但会重复加载mq配置，而且都是默认值的，这里设置的值都无效了 -->
+  	<bean id="amqConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+  				<!-- 使用外部mq server端口只能是61616了 -->
+				<!-- <property name="brokerURL" value="tcp://127.0.0.1:61616?jms.useAsyncSend=true" /> -->
+				<!-- 使用vm协议，就表示不用外部的mq server，而是使用嵌入式的mq server（自带的） ,这里的broker01，是上面定义的名称-->
+				<property name="brokerURL" value="vm://broker02?jms.useAsyncSend=true" />
+				<!--  jms.useAsyncSend=true 指定异步方式，性能比同步方式提升5倍   -->
+	</bean>
+	
+	<!-- 第二种配置连接池方式 -->
+	<!-- <amq:connectionFactory id="amqConnectionFactory" brokerURL="vm://127.0.0.1?jms.useAsyncSend=true" /> -->
+  	
+  	<bean id="simpleJmsConnectionFactory" class="org.springframework.jms.connection.CachingConnectionFactory">
+	  	<constructor-arg ref="amqConnectionFactory"/>
+		<property name="sessionCacheSize" value="100" />
+		<property name="cacheConsumers" value="true"></property>
+		<property name="exceptionListener" ref="jmsExceptionListener"/>
+	</bean>
+	
+	<bean id="jmsExceptionListener" class="jms.JmsExceptionListener"></bean>
+  	
+    
+    <!-- jms 模板 -->
+    <bean id="jmsTemplate" class="org.springframework.jms.core.JmsTemplate">  
+        <property name="connectionFactory" ref="simpleJmsConnectionFactory"></property>  
+        <property name="defaultDestination" ref="messageQueue"></property>  
+    </bean>
+    
+    <!-- 消息对象队列  -->
+    <amq:queue id="messageQueue" name="messageQueue" physicalName="messageQueue" />
+    
+    <!-- 消息监听器 -->
+    <bean id="listenerContainer"  
+        class="org.springframework.jms.listener.DefaultMessageListenerContainer">  
+        <property name="connectionFactory" ref="simpleJmsConnectionFactory"></property>  
+        <property name="destination" ref="messageQueue"></property>  
+        <property name="messageListener" ref="receiveMessageListener"></property>  
+    </bean>
+    <!-- 消息监听器 实现类-->
+    <bean id="receiveMessageListener" class="jms.ReceiveMessageListener"/>  
+  	
+  	<!-- 消息发送器 -->
+    <bean id="messageSender" class="jms.MessageSender"/>
+    
+    <!--web层： spring mvc -->
+    <!-- 已通过扫描注入 -->
+    <!-- <bean id="sendMessageController" class="web.SendMessageController"/>    -->
+   <!--  <bean id="urlMapping"  
+        class="org.springframework.web.servlet.handler.SimpleUrlHandlerMapping">  
+        <property name="mappings">
+            <props>  
+                <prop key="/sendMessage.do">sendMessageController</prop>  
+            </props>  
+        </property>  
+    </bean> -->  
+      
+</beans>  

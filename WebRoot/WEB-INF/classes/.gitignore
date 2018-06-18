@@ -1,0 +1,8 @@
+/app-action.xml
+/app-context.xml
+/app-jms.xml
+/app-resources.xml
+/dto/
+/jms/
+/log4j.properties
+/web/
